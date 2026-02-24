@@ -1,0 +1,8 @@
+streamlit
+openpyxl
+anthropic
+python-dotenv>=1.0.0
+Pillow
+PyPDF2
+openai>=1.30.0
+flask>=3.0.0
