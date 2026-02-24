@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ToxoAnalyse — Interprétation Toxicologique Urinaire</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #eef2f7;
+      color: #1a2332;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0d2340 0%, #1a4a7a 100%);
+      color: #fff;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,.35);
+    }
+    header .logo { font-size: 1.75rem; }
+    header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: .4px; }
+    header p  { font-size: .78rem; color: #9ac2e8; margin-top: .2rem; }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1300px;
+      margin: 1.75rem auto;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: 370px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    /* ── Panels ── */
+    .panel {
+      background: #fff;
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,.07);
+    }
+    .panel-title {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #7a8a9b;
+      margin-bottom: 1.1rem;
+    }
+
+    /* ── Input panel sticky ── */
+    .input-panel { position: sticky; top: 1.5rem; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #b5c9e0;
+      border-radius: 10px;
+      padding: 1.75rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      background: #f5f9fd;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.over {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .drop-zone .dz-icon { font-size: 2.2rem; margin-bottom: .5rem; display: block; }
+    .drop-zone .dz-label { font-size: .875rem; color: #5a6a7d; }
+    .drop-zone .dz-hint  { font-size: .72rem; color: #98a8b8; margin-top: .3rem; }
+
+    /* ── Preview ── */
+    #preview-wrap { display: none; margin-top: .75rem; }
+    #preview-wrap img {
+      width: 100%;
+      border-radius: 7px;
+      border: 1px solid #dce8f5;
+      max-height: 220px;
+      object-fit: cover;
+    }
+    .preview-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: .4rem;
+    }
+    .preview-meta span { font-size: .72rem; color: #7a8a9b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+    .btn-remove {
+      background: none; border: none;
+      color: #e05252; font-size: .72rem; font-weight: 700;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .btn-remove:hover { color: #c0392b; }
+
+    /* ── Context textarea ── */
+    .form-group { margin-top: 1rem; }
+    .form-group label {
+      display: block; font-size: .72rem; font-weight: 600;
+      color: #4a5a6a; margin-bottom: .35rem;
+    }
+    textarea {
+      width: 100%;
+      border: 1.5px solid #dce8f5;
+      border-radius: 7px;
+      padding: .7rem .9rem;
+      font-size: .85rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 85px;
+      color: #1a2332;
+      transition: border-color .2s;
+      background: #fafcfe;
+    }
+    textarea:focus { outline: none; border-color: #2563eb; background: #fff; }
+
+    /* ── Submit ── */
+    .btn-submit {
+      width: 100%;
+      margin-top: 1.1rem;
+      padding: .875rem;
+      background: linear-gradient(135deg, #0d2340 0%, #2563eb 100%);
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: .9375rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .3px;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-submit:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 5px 16px rgba(37,99,235,.35);
+    }
+    .btn-submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+    /* ── Output panel ── */
+    .output-panel { min-height: 520px; }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: .75rem;
+      border-bottom: 1px solid #eaf0f8;
+    }
+
+    /* ── Status badge ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: .35rem;
+      font-size: .7rem; font-weight: 700;
+      padding: .28rem .7rem;
+      border-radius: 20px;
+    }
+    .badge-idle     { background: #f0f4f8; color: #7a8a9b; }
+    .badge-running  { background: #eff6ff; color: #2563eb; animation: pulse 1.4s ease-in-out infinite; }
+    .badge-done     { background: #f0fdf4; color: #16a34a; }
+    .badge-error    { background: #fff0f0; color: #dc2626; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    /* ── Placeholder ── */
+    .placeholder {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 420px; color: #aab8c8; text-align: center; gap: .75rem;
+    }
+    .placeholder .ph-icon { font-size: 3.5rem; }
+    .placeholder p { font-size: .875rem; line-height: 1.6; }
+
+    /* ── Streaming raw text ── */
+    #streaming-box {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: .78rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: #3a4a5a;
+      background: #f5f9fd;
+      border: 1px solid #dce8f5;
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    /* ── Rendered markdown ── */
+    #result-md { font-size: .875rem; line-height: 1.7; }
+
+    #result-md h2 {
+      font-size: 1rem; font-weight: 700; color: #0d2340;
+      margin: 1.4rem 0 .6rem;
+      padding-bottom: .35rem;
+      border-bottom: 2px solid #eaf0f8;
+    }
+    #result-md h3 {
+      font-size: .9rem; font-weight: 700; color: #1a4a7a;
+      margin: 1rem 0 .4rem;
+    }
+    #result-md p { margin: .45rem 0; }
+
+    /* Tables */
+    #result-md table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0;
+      font-size: .8rem;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 6px rgba(0,0,0,.08);
+    }
+    #result-md thead tr { background: #0d2340; color: #fff; }
+    #result-md th {
+      padding: .55rem .85rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    #result-md td {
+      padding: .45rem .85rem;
+      border-bottom: 1px solid #eaf0f8;
+      vertical-align: top;
+    }
+    #result-md tr:nth-child(even) td { background: #f5f9fd; }
+    #result-md tr:last-child td { border-bottom: none; }
+
+    #result-md strong { color: #0d2340; font-weight: 700; }
+    #result-md em    { color: #4a6080; }
+
+    #result-md ul, #result-md ol { padding-left: 1.3rem; margin: .5rem 0; }
+    #result-md li { margin: .25rem 0; }
+
+    #result-md blockquote {
+      border-left: 3px solid #2563eb;
+      padding: .3rem .85rem;
+      color: #4a6080;
+      background: #f5f9fd;
+      border-radius: 0 6px 6px 0;
+      margin: .5rem 0;
+      font-style: italic;
+    }
+
+    #result-md code {
+      background: #eef3fa;
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      font-family: 'SF Mono', monospace;
+      font-size: .8rem;
+      color: #1a4a7a;
+    }
+
+    /* ── Conclusion banner ── */
+    .conclusion-banner {
+      background: linear-gradient(135deg, #0d2340 0%, #1a4a7a 100%);
+      color: #fff;
+      padding: 1rem 1.25rem;
+      border-radius: 9px;
+      margin-bottom: 1.2rem;
+      font-size: .9rem;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      .input-panel { position: static; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🧬</div>
+  <div>
+    <h1>ToxoAnalyse</h1>
+    <p>Interprétation automatisée des résultats toxicologiques urinaires — Atellica Immuno &amp; LC-MS/MS</p>
+  </div>
+</header>
+
+<main>
+  <!-- ── Input panel ── -->
+  <aside class="panel input-panel">
+    <div class="panel-title">Données d'entrée</div>
+
+    <form id="form" novalidate>
+      <!-- Drop zone -->
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept="image/*">
+        <span class="dz-icon">📋</span>
+        <div class="dz-label">Déposer la capture d'écran ici</div>
+        <div class="dz-hint">PNG, JPG, JPEG — ou cliquer pour parcourir</div>
+      </div>
+
+      <!-- Preview -->
+      <div id="preview-wrap">
+        <img id="preview-img" src="" alt="Aperçu">
+        <div class="preview-meta">
+          <span id="file-name"></span>
+          <button type="button" class="btn-remove" id="btn-remove">✕ Retirer</button>
+        </div>
+      </div>
+
+      <!-- Context -->
+      <div class="form-group">
+        <label for="ctx">Contexte additionnel <span style="color:#aab8c8;font-weight:400">(optionnel)</span></label>
+        <textarea
+          id="ctx" name="context"
+          placeholder="Ex : délais entre prélèvements, résultats antérieurs, substance(s) suspectée(s), données chronologiques, historique de consommation..."
+        ></textarea>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btn-submit">
+        🔬 &nbsp;Analyser les résultats
+      </button>
+    </form>
+  </aside>
+
+  <!-- ── Output panel ── -->
+  <section class="panel output-panel">
+    <div class="output-header">
+      <div class="panel-title">Rapport d'interprétation</div>
+      <span class="badge badge-idle" id="badge">⏺ En attente</span>
+    </div>
+
+    <div id="output">
+      <div class="placeholder">
+        <div class="ph-icon">🔬</div>
+        <p>Chargez une capture d'écran (et/ou saisissez un contexte)<br>puis cliquez sur <strong>Analyser</strong> pour obtenir<br>l'interprétation toxicologique structurée.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  /* ─ Elements ─ */
+  const form       = document.getElementById('form');
+  const fileInput  = document.getElementById('file-input');
+  const dropZone   = document.getElementById('drop-zone');
+  const previewWrap= document.getElementById('preview-wrap');
+  const previewImg = document.getElementById('preview-img');
+  const fileNameEl = document.getElementById('file-name');
+  const btnRemove  = document.getElementById('btn-remove');
+  const btnSubmit  = document.getElementById('btn-submit');
+  const output     = document.getElementById('output');
+  const badge      = document.getElementById('badge');
+
+  /* ─ Drag & drop ─ */
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) loadFile(f);
+  });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+  function loadFile(file) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      previewImg.src = ev.target.result;
+      fileNameEl.textContent = file.name;
+      previewWrap.style.display = 'block';
+      dropZone.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  btnRemove.addEventListener('click', () => {
+    fileInput.value = '';
+    previewWrap.style.display = 'none';
+    dropZone.style.display = 'block';
+  });
+
+  /* ─ Badge helpers ─ */
+  function setBadge(type, text) {
+    badge.className = 'badge badge-' + type;
+    badge.textContent = text;
+  }
+
+  /* ─ Submission ─ */
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+
+    const ctx  = document.getElementById('ctx').value.trim();
+    const file = fileInput.files[0];
+
+    if (!file && !ctx) {
+      alert('Veuillez fournir une image ou un contexte textuel.');
+      return;
+    }
+
+    const fd = new FormData();
+    if (file) fd.append('image', file);
+    if (ctx)  fd.append('context', ctx);
+
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = '⏳  Analyse en cours…';
+    setBadge('running', '⏺ Analyse en cours');
+
+    /* Streaming box */
+    output.innerHTML = '<div id="streaming-box"></div>';
+    const box = document.getElementById('streaming-box');
+    let fullText = '';
+    let done = false;
+
+    try {
+      const resp = await fetch('/analyze', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      const reader  = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6);
+          if (payload === '[DONE]') { done = true; break; }
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.text) {
+              fullText += parsed.text;
+              box.textContent = fullText;
+              box.scrollTop = box.scrollHeight;
+            }
+          } catch (parseErr) {
+            if (parseErr.message !== 'Unexpected end of JSON input') throw parseErr;
+          }
+        }
+      }
+
+      /* Render markdown */
+      renderMarkdown(fullText);
+      setBadge('done', '✓ Analyse complète');
+
+    } catch (err) {
+      output.innerHTML = `<div style="color:#dc2626;padding:1.25rem;background:#fff0f0;border-radius:8px;border:1px solid #fca5a5;">
+        <strong>Erreur :</strong> ${err.message}
+      </div>`;
+      setBadge('error', '✕ Erreur');
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = '🔬 \u00A0Analyser les résultats';
+    }
+  });
+
+  /* ─ Markdown renderer ─ */
+  function renderMarkdown(text) {
+    marked.setOptions({ breaks: true, gfm: true });
+
+    /* Try to extract conclusion line for banner */
+    const conclusionMatch = text.match(/\*{0,2}Conclusion\s*:\s*([^\n]+)\*{0,2}/i);
+    let bannerHtml = '';
+    if (conclusionMatch) {
+      bannerHtml = `<div class="conclusion-banner">⚕️ &nbsp;${conclusionMatch[0].replace(/\*\*/g,'').trim()}</div>`;
+    }
+
+    output.innerHTML = bannerHtml + '<div id="result-md"></div>';
+    document.getElementById('result-md').innerHTML = marked.parse(text);
+
+    /* Scroll output to top */
+    output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+</script>
+</body>
+</html>

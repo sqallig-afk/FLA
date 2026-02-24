@@ -1,0 +1,6 @@
+streamlit
+openpyxl
+anthropic
+python-dotenv
+Pillow
+PyPDF2
