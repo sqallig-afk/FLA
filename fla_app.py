@@ -34,6 +34,18 @@ st.set_page_config(
 # Titre
 st.title("Fiche de Lancement d'Achat")
 st.caption("Laboratoire de biologie clinique — CHR Citadelle, Liège")
+st.caption("**Dr. SG**")
+
+# Disclaimer / Avertissement légal
+st.markdown("""
+---
+⚠️ **Avertissement légal** : En utilisant cet outil, vous confirmez que :
+- Vous l'utilisez en accord avec les règles RGPD de votre établissement
+- Vous assumez l'entière responsabilité de son utilisation
+
+Le créateur se dégage de toute responsabilité en cas de mauvais usage.
+---
+""")
 
 # Sidebar
 if llm_available():
