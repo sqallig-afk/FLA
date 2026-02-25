@@ -36,17 +36,6 @@ st.title("Fiche de Lancement d'Achat")
 st.caption("Laboratoire de biologie clinique — CHR Citadelle, Liège")
 st.caption("**Dr. SG**")
 
-# Disclaimer / Avertissement légal
-st.markdown("""
----
-⚠️ **Avertissement légal** : En utilisant cet outil, vous confirmez que :
-- Vous l'utilisez en accord avec les règles RGPD de votre établissement
-- Vous assumez l'entière responsabilité de son utilisation
-
-Le créateur se dégage de toute responsabilité en cas de mauvais usage.
----
-""")
-
 # Sidebar
 if llm_available():
     st.sidebar.success("Claude API connectée")
@@ -181,3 +170,12 @@ if st.button("Générer la FLA", type="primary", use_container_width=True):
             type="primary",
             use_container_width=True,
         )
+
+# Disclaimer discret en bas
+st.markdown(
+    "<div style='text-align: center; font-size: 0.75rem; color: #888; margin-top: 2rem;'>"
+    "En utilisant cet outil, vous confirmez l'utiliser en conformité avec les règles RGPD de votre établissement "
+    "et assumez l'entière responsabilité de son utilisation. Le créateur se dégage de toute responsabilité en cas de mauvais usage."
+    "</div>",
+    unsafe_allow_html=True
+)
