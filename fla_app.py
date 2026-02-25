@@ -1,70 +1,124 @@
 """
 App FLA - Fiche de Lancement d'Achat
-Interface ultra-simple : 1 champ texte + upload documents + bouton Générer.
+Un champ texte libre + upload/coller images + bouton Générer → Excel complété.
 Lancer avec : streamlit run fla_app.py
 """
 
 import os
 import sys
+import base64
 from pathlib import Path
 import streamlit as st
 from datetime import date
 from dotenv import load_dotenv
 
-# Charger .env depuis le dossier de l'app (pas le cwd)
+# Charger .env depuis le dossier de l'app
 APP_DIR = Path(__file__).parent
 load_dotenv(APP_DIR / ".env", override=True)
 
-# Ajouter le dossier au path pour les imports
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from fla_engine import build_fla_data, generate_summary
-from llm_service import (
-    extract_facts_from_text,
-    generate_motivation,
-    generate_rentabilite,
-    is_available as llm_available,
-)
+from llm_service import analyze_request, generate_fallback, is_available as llm_available
 from document_extractor import extract_from_file
 from excel_generator import generate_excel
 
-load_dotenv()
-
-# --- Configuration page ---
+# --- Page config ---
 st.set_page_config(
-    page_title="FLA - Fiche de Lancement d'Achat",
+    page_title="FLA - Lancement d'Achat",
     page_icon="🧪",
     layout="centered",
 )
 
+# --- CSS + JS pour coller des images depuis le presse-papier ---
+st.markdown("""
+<style>
+    #paste-zone {
+        border: 2px dashed #ccc;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        color: #888;
+        margin: 10px 0;
+        cursor: pointer;
+        transition: border-color 0.3s;
+    }
+    #paste-zone:hover, #paste-zone.drag-over {
+        border-color: #ff4b4b;
+        color: #ff4b4b;
+    }
+    #paste-zone img {
+        max-width: 100%;
+        max-height: 200px;
+        margin-top: 10px;
+        border-radius: 5px;
+    }
+</style>
+<div id="paste-zone" tabindex="0">
+    Collez une capture d'écran ici (Ctrl+V) ou cliquez puis collez
+</div>
+<script>
+const pasteZone = document.getElementById('paste-zone');
+const KEY = 'pasted_image_data';
+
+pasteZone.addEventListener('click', () => pasteZone.focus());
+
+pasteZone.addEventListener('paste', async (e) => {
+    const items = e.clipboardData.items;
+    for (const item of items) {
+        if (item.type.startsWith('image/')) {
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = () => {
+                const base64 = reader.result;
+                // Afficher l'aperçu
+                pasteZone.innerHTML = '<p>Image collée :</p><img src="' + base64 + '"/>';
+                // Stocker dans sessionStorage pour Streamlit
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: base64}, '*');
+                // Stocker dans un input hidden
+                let input = document.getElementById('pasted-image-input');
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.id = 'pasted-image-input';
+                    document.body.appendChild(input);
+                }
+                input.value = base64;
+                sessionStorage.setItem(KEY, base64);
+            };
+            reader.readAsDataURL(blob);
+            break;
+        }
+    }
+});
+</script>
+""", unsafe_allow_html=True)
+
+# Titre
 st.title("Fiche de Lancement d'Achat")
 st.caption("Laboratoire de biologie clinique — CHR Citadelle, Liège")
 
-# Status LLM
+# Sidebar
 if llm_available():
     st.sidebar.success("Claude API connectée")
 else:
     st.sidebar.error("Claude API non disponible")
     st.sidebar.caption("Ajoutez ANTHROPIC_API_KEY dans .env")
 
-# --- Zone de saisie unique ---
-st.markdown("")
-
+# --- Champ texte unique ---
 demande = st.text_area(
-    "Décrivez votre demande d'achat",
+    "Décrivez votre demande d'achat (en vrac, comme vous voulez)",
     height=180,
     placeholder=(
-        "Exemple : Je voudrais acheter une centrifugeuse Eppendorf 5430R "
-        "pour la section chimie spécialisée. C'est pour remplacer notre ancienne "
-        "centrifugeuse de 2015 qui est en panne. Le devis est à 12 500€ TVAC "
-        "chez Eppendorf. On a besoin de formation pour le personnel."
+        "Exemple : centrifugeuse Eppendorf 5430R, remplacement ancienne 2015, "
+        "devis 12500€ TVAC, formation nécessaire, pour section chimie spécialisée"
     ),
 )
 
-# --- Upload de documents ---
+# --- Upload classique (fichiers) ---
 uploaded_files = st.file_uploader(
-    "Joindre un devis, fiche technique ou capture d'écran (optionnel)",
+    "Ou joindre un devis / capture d'écran (fichier)",
     type=["pdf", "png", "jpg", "jpeg", "gif", "webp"],
     accept_multiple_files=True,
 )
@@ -74,9 +128,9 @@ st.markdown("")
 
 if st.button("Générer la FLA", type="primary", use_container_width=True):
     if not demande.strip() and not uploaded_files:
-        st.error("Décrivez votre demande ou uploadez un document.")
+        st.error("Décrivez votre demande ou joignez un document.")
     else:
-        with st.spinner("Analyse en cours..."):
+        with st.spinner("Claude analyse votre demande..."):
 
             # 1. Extraire infos des documents uploadés
             doc_info_parts = []
@@ -89,98 +143,88 @@ if st.button("Générer la FLA", type="primary", use_container_width=True):
                         doc_info_parts.append(
                             "\n".join(f"{k}: {v}" for k, v in extracted.items())
                         )
-
             doc_info_str = "\n".join(doc_info_parts)
 
-            # 2. Extraire les faits du texte libre via Claude
-            facts = extract_facts_from_text(demande.strip(), doc_info_str)
+            # 2. UN seul appel Claude → tous les champs
+            llm_result = analyze_request(demande.strip(), doc_info_str)
 
-            # 3. Préparer les inputs pour le moteur de règles
+            if not llm_result or llm_result.get("_error"):
+                # Fallback sans API
+                fallback = generate_fallback(demande.strip(), "")
+                llm_result = fallback
+
+            # 3. Injecter devis_disponible
+            llm_result["devis_disponible"] = has_devis
+
+            # 4. Passer au moteur de règles pour combler les trous
+            #    (le moteur ne touche pas aux champs déjà remplis par Claude)
             form_inputs = {
-                "objet": facts.get("objet", demande.strip()),
-                "contexte": facts.get("contexte", ""),
-                "categorie": "",
-                "quantite": facts.get("quantite") or 1,
-                "prix_unitaire": facts.get("prix_unitaire", ""),
-                "montant_total": facts.get("montant_total", ""),
-                "date_souhaitee": facts.get("date_souhaitee", ""),
-                "site": facts.get("site", ""),
-                "local": "",
-                "is_remplacement": facts.get("is_remplacement", False),
-                "remplacement_info": facts.get("remplacement_info", ""),
-                "reprise": "",
-                "fournisseurs": facts.get("fournisseurs", ""),
+                "objet": llm_result.get("objet", demande.strip()),
+                "contexte": llm_result.get("contexte", ""),
+                "categorie": llm_result.get("categorie", ""),
+                "quantite": llm_result.get("quantite") or 1,
+                "prix_unitaire": llm_result.get("prix_unitaire", ""),
+                "montant_total": llm_result.get("montant_total", ""),
+                "date_souhaitee": llm_result.get("date_mise_en_service", ""),
+                "site": llm_result.get("site", ""),
+                "local": llm_result.get("local", ""),
+                "is_remplacement": llm_result.get("is_remplacement", False),
+                "remplacement_info": llm_result.get("remplacement_info", ""),
+                "reprise": llm_result.get("reprise", ""),
+                "fournisseurs": llm_result.get("fournisseurs", ""),
                 "devis_disponible": has_devis,
-                "compatibilite": facts.get("compatibilite", ""),
-                "budget_prevu": "",
-                "consommables": "",
-                "estimation_consommables": "",
-                "maintenance": "",
+                "compatibilite": llm_result.get("compatibilite", ""),
+                "budget_prevu": llm_result.get("budget_prevu", ""),
+                "consommables": llm_result.get("consommables", ""),
+                "estimation_consommables": llm_result.get("estimation_consommables", ""),
+                "maintenance": llm_result.get("maintenance", ""),
                 "has_devis_maintenance": False,
-                "estimation_maintenance": "",
-                "commentaires_budget": "",
-                "subside": "",
-                "nb_patients": "",
-                "code_inami": "",
-                "montant_inami": "",
-                "pct_hopital_inami": "",
-                "ressources_humaines": "",
-                "categories_rh": "",
-                "travaux": "",
-                "estimation_travaux": "",
-                "it": "",
-                "estimation_it": "",
-                "rgpd": "",
-                "sipp": "",
-                "hygiene": "",
-                "autres_parties": "",
-                "nom_demandeur": facts.get("nom_demandeur", ""),
+                "estimation_maintenance": llm_result.get("estimation_maintenance", ""),
+                "commentaires_budget": llm_result.get("commentaires_budget", ""),
+                "subside": llm_result.get("subside", ""),
+                "nb_patients": llm_result.get("nb_patients", ""),
+                "code_inami": llm_result.get("code_inami", ""),
+                "montant_inami": llm_result.get("montant_inami", ""),
+                "pct_hopital_inami": llm_result.get("pct_hopital_inami", ""),
+                "ressources_humaines": llm_result.get("ressources_humaines", ""),
+                "categories_rh": llm_result.get("categories_rh", ""),
+                "travaux": llm_result.get("travaux", ""),
+                "estimation_travaux": llm_result.get("estimation_travaux", ""),
+                "it": llm_result.get("it", ""),
+                "estimation_it": llm_result.get("estimation_it", ""),
+                "rgpd": llm_result.get("rgpd", ""),
+                "sipp": llm_result.get("sipp", ""),
+                "hygiene": llm_result.get("hygiene", ""),
+                "autres_parties": llm_result.get("autres_parties", ""),
+                "nom_demandeur": llm_result.get("nom_demandeur", ""),
+                "motivation": llm_result.get("motivation", ""),
+                "rentabilite": llm_result.get("rentabilite", ""),
             }
 
-            # 4. Moteur de règles déterministe → tous les champs
             fla_data = build_fla_data(form_inputs)
 
-            # 5. Générer les textes narratifs via Claude (ou fallback)
-            fla_data["motivation"] = generate_motivation(
-                fla_data["objet"],
-                facts.get("contexte", ""),
-                fla_data["raison"],
-                facts.get("is_remplacement", False),
-            )
-            fla_data["rentabilite"] = generate_rentabilite(
-                fla_data["objet"],
-                facts.get("contexte", ""),
-                fla_data["categorie"],
-                fla_data["montant_total"],
-            )
+            # Écraser motivation/rentabilité avec ceux de Claude (plus intelligents)
+            if llm_result.get("motivation"):
+                fla_data["motivation"] = llm_result["motivation"]
+            if llm_result.get("rentabilite"):
+                fla_data["rentabilite"] = llm_result["rentabilite"]
 
-            # 6. Générer l'Excel
+            # Écraser les champs que Claude a rempli et que le moteur a peut-être écrasé
+            for key in ["raison", "categorie", "consommables", "maintenance", "it",
+                        "rgpd", "travaux", "sipp", "hygiene", "formation", "tests",
+                        "site", "local", "remplacement_info", "reprise"]:
+                if llm_result.get(key):
+                    fla_data[key] = llm_result[key]
+
+            # 5. Générer l'Excel
             excel_bytes = generate_excel(fla_data)
 
-            # 7. Résumé
-            summary = generate_summary(fla_data)
-
-        # --- Affichage résultat ---
+        # --- Résultat : juste le téléchargement ---
         st.success("FLA générée !")
-        st.markdown("---")
 
-        st.subheader("Résumé")
-        st.markdown(summary)
-
-        with st.expander("Motivation de l'achat"):
-            st.write(fla_data["motivation"])
-        with st.expander("Rentabilité"):
-            st.write(fla_data["rentabilite"])
-        with st.expander("Tous les champs remplis"):
-            for k, v in fla_data.items():
-                if v:
-                    st.markdown(f"**{k.replace('_', ' ').title()}** : {v}")
-
-        # Bouton téléchargement
-        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in fla_data["objet"][:30])
+        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in fla_data.get("objet", "FLA")[:30])
         filename = f"FLA_{safe_name}_{date.today().strftime('%Y%m%d')}.xlsx"
 
-        st.markdown("")
         st.download_button(
             label="Télécharger le fichier Excel complété",
             data=excel_bytes,
