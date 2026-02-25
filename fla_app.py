@@ -31,6 +31,27 @@ st.set_page_config(
     layout="centered",
 )
 
+# --- Authentication ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔐 Authentification")
+    st.markdown("---")
+
+    username = st.text_input("Utilisateur", placeholder="LaboCita")
+    password = st.text_input("Mot de passe", type="password", placeholder="••••••••")
+
+    if st.button("Se connecter", use_container_width=True, type="primary"):
+        if username == "LaboCita" and password == "LaboCitaDr.SG":
+            st.session_state.authenticated = True
+            st.success("✅ Connexion réussie !")
+            st.rerun()
+        else:
+            st.error("❌ Identifiants incorrects")
+
+    st.stop()
+
 # Titre
 st.title("Fiche de Lancement d'Achat")
 st.caption("Laboratoire de biologie clinique — CHR Citadelle, Liège")
