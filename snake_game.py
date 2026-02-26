@@ -55,56 +55,104 @@ SNAKE_GAME_HTML = """
     const cv = document.getElementById('snk');
     const ctx = cv.getContext('2d');
     const wrap = document.getElementById('snake-wrap');
-    const COLS = 32, ROWS = 24, C = 15;
+    const COLS = 40, ROWS = 30, C = 12;
 
-    // Pixel font 3x5 pour chaque lettre
+    // Police pixel 4x6 — lettres bien définies
     const FT = {
-        'L': [[1,0,0],[1,0,0],[1,0,0],[1,0,0],[1,1,1]],
-        'a': [[0,0,0],[1,1,1],[0,0,1],[1,1,1],[1,0,1]],
-        'b': [[1,0,0],[1,1,0],[1,0,1],[1,0,1],[1,1,0]],
-        'o': [[0,0,0],[0,1,0],[1,0,1],[1,0,1],[0,1,0]],
-        'C': [[0,1,1],[1,0,0],[1,0,0],[1,0,0],[0,1,1]],
-        'i': [[0,1,0],[0,0,0],[0,1,0],[0,1,0],[0,1,0]],
-        't': [[0,1,0],[1,1,1],[0,1,0],[0,1,0],[0,1,1]]
+        'L': [
+            [1,0,0,0],
+            [1,0,0,0],
+            [1,0,0,0],
+            [1,0,0,0],
+            [1,0,0,0],
+            [1,1,1,1]
+        ],
+        'a': [
+            [0,0,0,0],
+            [0,0,0,0],
+            [0,1,1,0],
+            [1,0,0,1],
+            [1,1,1,1],
+            [1,0,0,1]
+        ],
+        'b': [
+            [1,0,0,0],
+            [1,0,0,0],
+            [1,1,1,0],
+            [1,0,0,1],
+            [1,0,0,1],
+            [1,1,1,0]
+        ],
+        'o': [
+            [0,0,0,0],
+            [0,0,0,0],
+            [0,1,1,0],
+            [1,0,0,1],
+            [1,0,0,1],
+            [0,1,1,0]
+        ],
+        'C': [
+            [0,1,1,0],
+            [1,0,0,1],
+            [1,0,0,0],
+            [1,0,0,0],
+            [1,0,0,1],
+            [0,1,1,0]
+        ],
+        'i': [
+            [0,0,0,0],
+            [0,1,0,0],
+            [0,0,0,0],
+            [0,1,0,0],
+            [0,1,0,0],
+            [0,1,0,0]
+        ],
+        't': [
+            [0,0,0,0],
+            [0,1,0,0],
+            [1,1,1,0],
+            [0,1,0,0],
+            [0,1,0,0],
+            [0,0,1,0]
+        ]
     };
 
     function wordCells(w, sx, sy) {
         const cells = [];
         let ox = sx;
         for (const ch of w) {
-            const k = (ch === 'C') ? 'C' : ch.toLowerCase();
-            const bmp = FT[k];
-            if (!bmp) { ox += 4; continue; }
+            const bmp = FT[ch];
+            if (!bmp) { ox += 5; continue; }
             for (let r = 0; r < bmp.length; r++)
                 for (let c = 0; c < bmp[r].length; c++)
                     if (bmp[r][c]) cells.push({x: ox+c, y: sy+r});
-            ox += 4;
+            ox += 5;
         }
         return cells;
     }
 
-    let snake, dir, ndir, food, score, over, won, on, spd, totalF, tick;
+    let snake, dir, ndir, food, score, over, won, on, spd, totalF;
 
     function init() {
-        const ww = 8*4 - 1;
+        const letterW = 4, gap = 1, nLetters = 8;
+        const ww = nLetters * letterW + (nLetters - 1) * gap;
         const sx = Math.floor((COLS - ww) / 2);
-        const sy = Math.floor((ROWS - 5) / 2);
+        const sy = Math.floor((ROWS - 6) / 2);
         food = wordCells("LaboCita", sx, sy);
         totalF = food.length;
         document.getElementById('tot').textContent = totalF;
         document.getElementById('sc').textContent = '0';
         snake = [{x:3, y:ROWS-3},{x:2, y:ROWS-3},{x:1, y:ROWS-3}];
         dir = {x:1, y:0}; ndir = {x:1, y:0};
-        score = 0; over = false; won = false; on = false; spd = 105; tick = 0;
+        score = 0; over = false; won = false; on = false; spd = 105;
         document.getElementById('snk-start-btn').textContent = '▶ Jouer';
     }
 
     function draw() {
-        // Background
         ctx.fillStyle = '#0d1117';
         ctx.fillRect(0, 0, cv.width, cv.height);
 
-        // Subtle grid
+        // Grille subtile
         ctx.strokeStyle = '#111820';
         ctx.lineWidth = 0.3;
         for (let x = 0; x <= COLS; x++) {
@@ -114,19 +162,19 @@ SNAKE_GAME_HTML = """
             ctx.beginPath(); ctx.moveTo(0, y*C); ctx.lineTo(COLS*C, y*C); ctx.stroke();
         }
 
-        // Food with pulsing glow
+        // Nourriture avec glow pulsé
         const pulse = 4 + Math.sin(Date.now() / 300) * 3;
         for (const f of food) {
             ctx.shadowColor = '#00897B';
             ctx.shadowBlur = pulse;
             ctx.fillStyle = '#b2dfdb';
             ctx.beginPath();
-            ctx.arc(f.x*C + C/2, f.y*C + C/2, C/2 - 2, 0, Math.PI*2);
+            ctx.arc(f.x*C + C/2, f.y*C + C/2, C/2 - 1.5, 0, Math.PI*2);
             ctx.fill();
             ctx.shadowBlur = 0;
         }
 
-        // Snake body (gradient tail → head)
+        // Corps du snake (dégradé queue → tête)
         for (let i = snake.length - 1; i >= 0; i--) {
             const s = snake[i];
             const t = i / Math.max(snake.length - 1, 1);
@@ -143,27 +191,27 @@ SNAKE_GAME_HTML = """
             }
             const pad = i === 0 ? 0.5 : 1;
             ctx.beginPath();
-            ctx.roundRect(s.x*C+pad, s.y*C+pad, C-pad*2, C-pad*2, 3);
+            ctx.roundRect(s.x*C+pad, s.y*C+pad, C-pad*2, C-pad*2, 2);
             ctx.fill();
             ctx.shadowBlur = 0;
         }
 
-        // Eyes on head
+        // Yeux
         if (snake.length > 0) {
             const h = snake[0];
             ctx.fillStyle = '#e0f2f1';
             let ex1, ey1, ex2, ey2;
-            if (dir.x===1)       { ex1=ex2=h.x*C+C-4; ey1=h.y*C+4; ey2=h.y*C+C-4; }
-            else if (dir.x===-1) { ex1=ex2=h.x*C+4;   ey1=h.y*C+4; ey2=h.y*C+C-4; }
-            else if (dir.y===-1) { ey1=ey2=h.y*C+4;   ex1=h.x*C+4; ex2=h.x*C+C-4; }
-            else                 { ey1=ey2=h.y*C+C-4;  ex1=h.x*C+4; ex2=h.x*C+C-4; }
-            ctx.beginPath(); ctx.arc(ex1,ey1,2,0,Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(ex2,ey2,2,0,Math.PI*2); ctx.fill();
+            if (dir.x===1)       { ex1=ex2=h.x*C+C-3; ey1=h.y*C+3; ey2=h.y*C+C-3; }
+            else if (dir.x===-1) { ex1=ex2=h.x*C+3;   ey1=h.y*C+3; ey2=h.y*C+C-3; }
+            else if (dir.y===-1) { ey1=ey2=h.y*C+3;   ex1=h.x*C+3; ex2=h.x*C+C-3; }
+            else                 { ey1=ey2=h.y*C+C-3;  ex1=h.x*C+3; ex2=h.x*C+C-3; }
+            ctx.beginPath(); ctx.arc(ex1,ey1,1.5,0,Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(ex2,ey2,1.5,0,Math.PI*2); ctx.fill();
         }
 
-        // Overlays
         ctx.textAlign = 'center';
 
+        // Écran de démarrage
         if (!on && !over && !won) {
             ctx.fillStyle = 'rgba(13,17,23,0.75)';
             ctx.fillRect(0, 0, cv.width, cv.height);
@@ -175,6 +223,7 @@ SNAKE_GAME_HTML = """
             ctx.fillText('Appuyez sur ESPACE ou ▶ Jouer', cv.width/2, cv.height/2 + 15);
         }
 
+        // Game Over
         if (over && !won) {
             ctx.fillStyle = 'rgba(13,17,23,0.8)';
             ctx.fillRect(0, 0, cv.width, cv.height);
@@ -187,21 +236,43 @@ SNAKE_GAME_HTML = """
             ctx.fillText('ESPACE ou ▶ pour rejouer', cv.width/2, cv.height/2 + 35);
         }
 
+        // Victoire !
         if (won) {
-            ctx.fillStyle = 'rgba(13,17,23,0.85)';
+            ctx.fillStyle = 'rgba(13,17,23,0.88)';
             ctx.fillRect(0, 0, cv.width, cv.height);
+
+            // Sigle LaboCita (cercle teal avec L)
+            const cx = cv.width/2, cy = cv.height/2 - 45;
+            ctx.shadowColor = '#00897B';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 28, 0, Math.PI*2);
+            ctx.fillStyle = '#00897B';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 26px Segoe UI';
+            ctx.fillText('🧪', cx, cy + 9);
+
+            // Texte principal doré
             ctx.shadowColor = '#ffb74d';
             ctx.shadowBlur = 25;
             ctx.fillStyle = '#ffb74d';
-            ctx.font = 'bold 26px Segoe UI';
-            ctx.fillText('🏆 Vous êtes le meilleur ! 🏆', cv.width/2, cv.height/2 - 20);
+            ctx.font = 'bold 24px Segoe UI';
+            ctx.fillText('🏆  Vous êtes le meilleur !  🏆', cx, cy + 55);
             ctx.shadowBlur = 0;
+
+            // LaboCita Validé
             ctx.fillStyle = '#26A69A';
-            ctx.font = '15px Segoe UI';
-            ctx.fillText('Score parfait : ' + totalF + ' / ' + totalF, cv.width/2, cv.height/2 + 12);
+            ctx.font = 'bold 18px Segoe UI';
+            ctx.fillText('LaboCita  ✅  Validé', cx, cy + 85);
+
+            // Score
             ctx.fillStyle = '#888';
-            ctx.font = '12px Segoe UI';
-            ctx.fillText('ESPACE ou ▶ pour rejouer', cv.width/2, cv.height/2 + 38);
+            ctx.font = '13px Segoe UI';
+            ctx.fillText('Score parfait : ' + totalF + ' / ' + totalF, cx, cy + 110);
+            ctx.font = '11px Segoe UI';
+            ctx.fillText('ESPACE ou ▶ pour rejouer', cx, cy + 130);
         }
     }
 
@@ -209,14 +280,9 @@ SNAKE_GAME_HTML = """
         if (!on || over || won) return;
         dir = ndir;
         const nh = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
-
-        // Wall
         if (nh.x < 0 || nh.x >= COLS || nh.y < 0 || nh.y >= ROWS) { over = true; return; }
-        // Self
         for (const s of snake) if (s.x === nh.x && s.y === nh.y) { over = true; return; }
-
         snake.unshift(nh);
-
         const fi = food.findIndex(f => f.x === nh.x && f.y === nh.y);
         if (fi !== -1) {
             food.splice(fi, 1);
@@ -236,7 +302,6 @@ SNAKE_GAME_HTML = """
         requestAnimationFrame(loop);
     }
 
-    // Keyboard controls
     wrap.addEventListener('keydown', function(e) {
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
         if (e.key === ' ') { snkStart(); return; }
@@ -251,7 +316,6 @@ SNAKE_GAME_HTML = """
 
     cv.addEventListener('click', function() { wrap.focus(); });
 
-    // Public API for buttons
     window.snkDir = function(dx, dy) {
         if (!on) return;
         if (dx === -dir.x && dy === 0) return;
