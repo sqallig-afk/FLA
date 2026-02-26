@@ -19,10 +19,12 @@ load_dotenv(APP_DIR / ".env", override=True)
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
+import streamlit.components.v1 as components
 from fla_engine import build_fla_data, generate_summary
 from llm_service import analyze_request, generate_fallback, is_available as llm_available
 from document_extractor import extract_from_file
 from excel_generator import generate_excel
+from snake_game import SNAKE_GAME_HTML
 
 # --- Page config ---
 st.set_page_config(
@@ -63,6 +65,13 @@ if llm_available():
 else:
     st.sidebar.error("Claude API non disponible")
     st.sidebar.caption("Ajoutez ANTHROPIC_API_KEY dans .env")
+
+st.sidebar.markdown("---")
+if "show_snake" not in st.session_state:
+    st.session_state.show_snake = False
+
+if st.sidebar.button("🐍 Snake LaboCita", use_container_width=True):
+    st.session_state.show_snake = not st.session_state.show_snake
 
 # --- Champ texte unique ---
 demande = st.text_area(
@@ -191,6 +200,12 @@ if st.button("Générer la FLA", type="primary", use_container_width=True):
             type="primary",
             use_container_width=True,
         )
+
+# --- Mini-jeu Snake ---
+if st.session_state.show_snake:
+    st.markdown("---")
+    with st.expander("🐍 Snake LaboCita", expanded=True):
+        components.html(SNAKE_GAME_HTML, height=520)
 
 # Disclaimer discret en bas
 st.markdown(
